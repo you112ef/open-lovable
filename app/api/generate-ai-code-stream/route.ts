@@ -170,8 +170,13 @@ export async function POST(request: NextRequest) {
           if (manifest) {
             await sendProgress({ type: 'status', message: '🔍 Creating search plan...' });
             
-            const fileContents = global.sandboxState.fileCache.files;
-            console.log('[generate-ai-code-stream] Files available for search:', Object.keys(fileContents).length);
+            const fileCache = global.sandboxState?.fileCache;
+            if (!fileCache || !fileCache.files) {
+              console.warn('[generate-ai-code-stream] No fileCache available; skipping search plan.');
+              await sendProgress({ type: 'warning', message: 'No file cache available to search. Proceeding without targeted edits.' });
+            } else {
+              const fileContents = fileCache.files;
+              console.log('[generate-ai-code-stream] Files available for search:', Object.keys(fileContents).length);
             
             // STEP 1: Get search plan from AI
             try {
@@ -274,6 +279,7 @@ User request: "${prompt}"`;
                 editContext = selectFilesForEdit(prompt, manifest);
               }
             }
+            }
           } else {
             // Fall back to old method if AI analysis fails
             console.warn('[generate-ai-code-stream] AI intent analysis failed, falling back to keyword method');
@@ -331,7 +337,7 @@ User request: "${prompt}"`;
                         
                         // For now, fall back to keyword search since we don't have file contents for search execution
                         // This path happens when no manifest was initially available
-                        let targetFiles = [];
+                        let targetFiles: string[] = [];
                         if (!searchPlan || searchPlan.searchTerms.length === 0) {
                           console.warn('[generate-ai-code-stream] No target files after fetch, searching for relevant files');
                           
@@ -953,16 +959,23 @@ CRITICAL: When files are provided in the context:
                   }
                   
                   // Store files in cache
+                  if (!global.sandboxState.fileCache) {
+                    global.sandboxState.fileCache = {
+                      files: {},
+                      lastSync: Date.now(),
+                      sandboxId: context?.sandboxId || 'unknown'
+                    } as any;
+                  }
                   for (const [path, content] of Object.entries(filesData.files)) {
                     const normalizedPath = path.replace('/home/user/app/', '');
-                    global.sandboxState.fileCache.files[normalizedPath] = {
+                    (global.sandboxState.fileCache!).files[normalizedPath] = {
                       content: content as string,
                       lastModified: Date.now()
                     };
                   }
                   
                   if (filesData.manifest) {
-                    global.sandboxState.fileCache.manifest = filesData.manifest;
+                    (global.sandboxState.fileCache!).manifest = filesData.manifest;
                     
                     // Now try to analyze edit intent with the fetched manifest
                     if (!editContext) {
@@ -993,7 +1006,7 @@ CRITICAL: When files are provided in the context:
                   }
                   
                   // Update variables
-                  backendFiles = global.sandboxState.fileCache.files;
+                  backendFiles = (global.sandboxState.fileCache!).files;
                   hasBackendFiles = Object.keys(backendFiles).length > 0;
                   console.log('[generate-ai-code-stream] Updated backend cache with fetched files');
                 }
@@ -1585,17 +1598,22 @@ Provide the complete file content without any truncation. Include all necessary 
                 
                 // Make a focused API call to complete this specific file
                 // Create a new client for the completion based on the provider
-                let completionClient;
-                if (model.includes('gpt') || model.includes('openai')) {
+                let completionClient: any;
+                let resolvedModel = model;
+                if (model.includes('openai/')) {
                   completionClient = openai;
-                } else if (model.includes('claude')) {
+                  resolvedModel = model.replace('openai/', '');
+                } else if (model.includes('gpt')) {
+                  completionClient = openai;
+                } else if (model.includes('anthropic/') || model.includes('claude')) {
                   completionClient = anthropic;
+                  resolvedModel = model.replace('anthropic/', '');
                 } else {
                   completionClient = groq;
                 }
                 
                 const completionResult = await streamText({
-                  model: completionClient(modelMapping[model] || model),
+                  model: completionClient(resolvedModel),
                   messages: [
                     { 
                       role: 'system', 
@@ -1603,8 +1621,8 @@ Provide the complete file content without any truncation. Include all necessary 
                     },
                     { role: 'user', content: completionPrompt }
                   ],
-                  temperature: isGPT5 ? undefined : appConfig.ai.defaultTemperature,
-                  maxTokens: appConfig.ai.truncationRecoveryMaxTokens
+                  temperature: appConfig.ai.defaultTemperature,
+                  maxOutputTokens: appConfig.ai.truncationRecoveryMaxTokens as any
                 });
                 
                 // Get the full text from the stream
