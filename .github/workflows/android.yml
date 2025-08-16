@@ -23,7 +23,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd OpenLovableApp
-          npm install
+          npm install --legacy-peer-deps
 
       - name: Setup Java
         uses: actions/setup-java@v4
