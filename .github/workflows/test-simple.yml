@@ -1,0 +1,27 @@
+name: Test Simple Workflow
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Echo message
+        run: echo "GitHub Actions is working!"
+        
+      - name: List files
+        run: |
+          echo "Current directory:"
+          pwd
+          echo "Files in .github/workflows:"
+          ls -la .github/workflows/
+          
+      - name: Test success
+        run: echo "✅ All tests passed!"
