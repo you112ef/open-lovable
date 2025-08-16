@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { appConfig } from '@/config/app.config';
 import { Button } from '@/components/ui/button';
@@ -119,7 +119,7 @@ export default function AISandboxPage() {
     thinkingText?: string;
     thinkingDuration?: number;
     currentFile?: { path: string; content: string; type: string };
-    files: Array<{ path: string; content: string; type: string; completed: boolean }>;
+    files: Array<{ path: string; content: string; type: string; completed: boolean; edited?: boolean }>;
     lastProcessedPosition: number;
     isEdit?: boolean;
   }>({
@@ -530,7 +530,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                   } else if (data.message.includes('Creating files') || data.message.includes('Applying')) {
                     setCodeApplicationState({ 
                       stage: 'applying',
-                      filesGenerated: results.filesCreated 
+                      filesGenerated: data.filesCreated || []
                     });
                   }
                   break;
@@ -691,22 +691,23 @@ Tip: I automatically detect and install npm packages from your code imports (lik
           log(data.explanation);
         }
         
-        if (data.autoCompleted) {
+        if ('autoCompleted' in data && data.autoCompleted) {
           log('Auto-generating missing components...', 'command');
           
-          if (data.autoCompletedComponents) {
+          if ('autoCompletedComponents' in data && Array.isArray((data as any).autoCompletedComponents)) {
+            const comps = (data as any).autoCompletedComponents as string[];
             setTimeout(() => {
               log('Auto-generated missing components:', 'info');
-              data.autoCompletedComponents.forEach((comp: string) => {
+              comps.forEach((comp: string) => {
                 log(`  ${comp}`, 'command');
               });
             }, 1000);
           }
-        } else if (data.warning) {
-          log(data.warning, 'error');
+        } else if ('warning' in data && (data as any).warning) {
+          log((data as any).warning, 'error');
           
-          if (data.missingImports && data.missingImports.length > 0) {
-            const missingList = data.missingImports.join(', ');
+          if ('missingImports' in data && Array.isArray((data as any).missingImports) && (data as any).missingImports.length > 0) {
+            const missingList = ((data as any).missingImports as string[]).join(', ');
             addChatMessage(
               `Ask me to "create the missing components: ${missingList}" to fix these import errors.`,
               'system'
@@ -716,7 +717,9 @@ Tip: I automatically detect and install npm packages from your code imports (lik
         
         log('Code applied successfully!');
         console.log('[applyGeneratedCode] Response data:', data);
-        console.log('[applyGeneratedCode] Debug info:', data.debug);
+        if ('debug' in data) {
+          console.log('[applyGeneratedCode] Debug info:', (data as any).debug);
+        }
         console.log('[applyGeneratedCode] Current sandboxData:', sandboxData);
         console.log('[applyGeneratedCode] Current iframe element:', iframeRef.current);
         console.log('[applyGeneratedCode] Current iframe src:', iframeRef.current?.src);
@@ -1009,11 +1012,11 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                       const fileTree: { [key: string]: Array<{ name: string; edited?: boolean }> } = {};
                       
                       // Create a map of edited files
-                      const editedFiles = new Set(
-                        generationProgress.files
-                          .filter(f => f.edited)
-                          .map(f => f.path)
-                      );
+                                             const editedFiles = new Set(
+                         generationProgress.files
+                           .filter(f => (f as any).edited)
+                           .map(f => f.path)
+                       );
                       
                       // Process all files from generation progress
                       generationProgress.files.forEach(file => {
@@ -1024,7 +1027,7 @@ Tip: I automatically detect and install npm packages from your code imports (lik
                         if (!fileTree[dir]) fileTree[dir] = [];
                         fileTree[dir].push({
                           name: fileName,
-                          edited: file.edited || false
+                          edited: (file as any).edited || false
                         });
                       });
                       
@@ -2991,7 +2994,7 @@ Focus on the key sections and content, making it clean and modern.`;
                 >
                   {appConfig.ai.availableModels.map(model => (
                     <option key={model} value={model}>
-                      {appConfig.ai.modelDisplayNames[model] || model}
+                      {(appConfig.ai.modelDisplayNames as any)[model] || model}
                     </option>
                   ))}
                 </select>
@@ -3027,7 +3030,7 @@ Focus on the key sections and content, making it clean and modern.`;
           >
             {appConfig.ai.availableModels.map(model => (
               <option key={model} value={model}>
-                {appConfig.ai.modelDisplayNames[model] || model}
+                {(appConfig.ai.modelDisplayNames as any)[model] || model}
               </option>
             ))}
           </select>

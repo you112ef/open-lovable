@@ -2,14 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 
-// Initialize AI clients
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+// AI clients will be initialized on-demand inside the handler to avoid build-time env errors
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,33 +38,36 @@ export async function POST(request: NextRequest) {
       isOpenAI
     );
 
-    let response;
+    let aiResponse: string;
+    let usage: any = null;
     if (isOpenAI) {
-      response = await openai.chat.completions.create({
+      const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+      const r = await openai.chat.completions.create({
         model: model,
-        messages: messages,
+        messages: messages as any,
         temperature: 0.7,
         max_tokens: 4000,
         stream: false,
       });
+      aiResponse = (r.choices[0].message.content as string) ?? '';
+      usage = r.usage;
     } else {
-      response = await anthropic.messages.create({
+      const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+      const r = await anthropic.messages.create({
         model: model,
         max_tokens: 4000,
-        messages: messages,
+        messages: messages as any,
         temperature: 0.7,
       });
+      const textParts = r.content.filter((c: any) => c.type === 'text').map((c: any) => c.text);
+      aiResponse = textParts.join('\n');
     }
-
-    const aiResponse = isOpenAI 
-      ? response.choices[0].message.content
-      : response.content[0].text;
 
     return NextResponse.json({
       success: true,
       response: aiResponse,
       model: model,
-      usage: isOpenAI ? response.usage : null
+      usage: usage
     });
 
   } catch (error) {
@@ -116,7 +112,7 @@ Always provide practical, working code that can be immediately applied to the sa
 
 Respond in a helpful, professional manner. When generating code, be specific about file paths and ensure the code is complete and functional.`;
 
-  const messages = [];
+  const messages: any[] = [];
 
   if (isOpenAI) {
     messages.push({

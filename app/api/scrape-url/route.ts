@@ -50,7 +50,7 @@ async function scrapeWebsite(url: string) {
   try {
     // Launch browser
     browser = await puppeteer.launch({
-      headless: 'new',
+      headless: true,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -77,7 +77,7 @@ async function scrapeWebsite(url: string) {
     });
 
     // Wait for content to load
-    await page.waitForTimeout(2000);
+    await page.waitForNetworkIdle({ idleTime: 1000, timeout: 5000 });
 
     // Extract page data
     const pageData = await page.evaluate(() => {

@@ -16,6 +16,10 @@ const anthropic = createAnthropic({
   baseURL: process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com/v1',
 });
 
+const google = createGoogleGenerativeAI({
+  apiKey: process.env.GOOGLE_API_KEY,
+});
+
 const openai = createOpenAI({
   apiKey: process.env.OPENAI_API_KEY,
   baseURL: process.env.OPENAI_BASE_URL,
@@ -104,7 +108,7 @@ export async function POST(request: NextRequest) {
         aiModel = openai(model.replace('openai/', ''));
       }
     } else if (model.startsWith('google/')) {
-      aiModel = createGoogleGenerativeAI(model.replace('google/', ''));
+      aiModel = google(model.replace('google/', '')) as any;
     } else {
       // Default to groq if model format is unclear
       aiModel = groq(model);
@@ -114,7 +118,7 @@ export async function POST(request: NextRequest) {
     
     // Use AI to create a search plan
     const result = await generateObject({
-      model: aiModel,
+      model: aiModel as any,
       schema: searchPlanSchema,
       messages: [
         {

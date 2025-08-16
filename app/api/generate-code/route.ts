@@ -2,14 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
 
-// Initialize AI clients
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+// Clients will be created on-demand inside functions to avoid build-time env errors
 
 export async function POST(request: NextRequest) {
   try {
@@ -89,6 +82,8 @@ async function streamCodeGeneration(
   isOpenAI: boolean
 ) {
   const encoder = new TextEncoder();
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
   if (isOpenAI) {
     const stream = await openai.chat.completions.create({
@@ -141,9 +136,9 @@ async function streamCodeGeneration(
     const readableStream = new ReadableStream({
       async start(controller) {
         try {
-          for await (const chunk of stream) {
-            if (chunk.type === 'content_block_delta') {
-              const content = chunk.delta.text;
+          for await (const chunk of stream as any) {
+            if (chunk.type === 'content_block_delta' && chunk.delta && typeof chunk.delta.text === 'string') {
+              const content = chunk.delta.text as string;
               if (content) {
                 controller.enqueue(encoder.encode(`data: ${JSON.stringify({ content })}\n\n`));
               }
@@ -174,6 +169,8 @@ async function generateCodeNonStreaming(
   isOpenAI: boolean
 ) {
   let response;
+  const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
   
   if (isOpenAI) {
     response = await openai.chat.completions.create({
@@ -197,14 +194,22 @@ async function generateCodeNonStreaming(
     });
   }
 
-  const content = isOpenAI 
-    ? response.choices[0].message.content
-    : response.content[0].text;
+  let content: string;
+  let usage: any = null;
+  if (isOpenAI) {
+    const r = response as any;
+    content = (r.choices?.[0]?.message?.content as string) ?? '';
+    usage = r.usage;
+  } else {
+    const r = response as any;
+    const textParts = (r.content || []).filter((c: any) => c.type === 'text').map((c: any) => c.text);
+    content = textParts.join('\n');
+  }
 
   return NextResponse.json({
     success: true,
-    content: content,
+    content,
     model: model,
-    usage: isOpenAI ? response.usage : null
+    usage
   });
 }
