@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import Anthropic from '@anthropic-ai/sdk';
+import { log } from '@/lib/logger';
 
 // Initialize AI clients
 const openai = new OpenAI({
@@ -75,7 +76,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('AI Chat API error:', error);
+    log.error('AI Chat API error', 'ai-chat', { error });
     return NextResponse.json(
       { error: 'Failed to generate AI response' },
       { status: 500 }
