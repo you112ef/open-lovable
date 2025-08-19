@@ -6,8 +6,13 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
+    "build:cf": "next build && next export",
     "start": "next start",
     "lint": "next lint",
+    "deploy": "wrangler pages deploy out --project-name=open-lovable",
+    "deploy:preview": "wrangler pages deploy out --project-name=open-lovable --compatibility-date=2024-08-19",
+    "cf:build": "NODE_ENV=production next build",
+    "cf:dev": "wrangler pages dev out --compatibility-date=2024-08-19",
     "test:integration": "node tests/e2b-integration.test.js",
     "test:api": "node tests/api-endpoints.test.js",
     "test:code": "node tests/code-execution.test.js",
@@ -55,6 +60,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.4.3",
     "tailwindcss": "^4.1.11",
-    "typescript": "^5"
+    "typescript": "^5",
+    "wrangler": "^3.78.0"
   }
 }
